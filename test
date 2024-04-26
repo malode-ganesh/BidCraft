@@ -1,0 +1,98 @@
+watchlist.php
+==============
+<?php
+include 'db.php'; // Include the database connection file
+
+// Check if the user is logged in
+session_start();
+if (!isset($_SESSION['email'])) {
+    header('Location: login.php');
+    exit;
+}
+
+// Your SQL query
+$userEmail = $_SESSION['email'];
+$userBidsSql = "SELECT b.id, p.product_name, b.bid_amount, b.bid_time, MAX(b2.bid_amount) AS highest_bid, p.end_date
+                FROM bids b
+                JOIN products p ON b.product_id = p.id
+                JOIN bids b2 ON b.product_id = b2.product_id
+                WHERE b.user_email = ?
+                GROUP BY b.id";
+$stmt = $con->prepare($userBidsSql);
+$stmt->bind_param("s", $userEmail);
+$stmt->execute();
+$userBidsResult = $stmt->get_result();
+
+if ($userBidsResult === false) {
+    die('Error executing query: ' . $con->error);
+}
+
+// Use the result set in your HTML table
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watchlist</title>
+    <!-- Include Bootstrap CSS -->
+    <?php include './Bootstrap/Bootstrap.php';?>
+</head>
+<body>
+    <?php include 'navbarSecure.php';?>
+    <div class="container">
+        <h2>Your Bids</h2>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Product Name</th>
+                    <th>Your Bid Amount</th>
+                    <th>Highest Bid</th>
+                    <th>Bid Time</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php while ($row = $userBidsResult->fetch_assoc()) { ?>
+                    <tr>
+                        <td><?php echo $row['id']; ?></td>
+                        <td><?php echo $row['product_name']; ?></td>
+                        <td><?php echo $row['bid_amount']; ?></td>
+                        <td><?php echo $row['highest_bid']; ?></td>
+                        <td><?php echo $row['bid_time']; ?></td>
+                        <td>
+                            <?php
+                            // Display the auction status
+                            $now = new DateTime();
+                            $end_date = new DateTime($row['end_date']);
+                            // if ($now < $end_date) {
+                            //     echo "In Progress";
+                            // } else {
+                                if ($row['highest_bid'] == $row['bid_amount']) {
+                                    echo "Won";
+                                    if($end_date <= $now){
+                                        ?>
+                                        <a href="checkout.php?user=<?php echo $userEmail;?>&pid=<?php echo $row['id'];?>" class="btn btn-sm btn-success">Checkout</a>
+
+                                        <?php
+                                    }
+                                } else {
+                                    echo "Lost";
+                                }
+                            // }
+                            ?>
+                        </td>
+                    </tr>
+                <?php } ?>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
+
+<?php
+
+$con->close();
+?>
